@@ -39,16 +39,16 @@ COLORS = [RED, GREEN, BLUE, YELLOW]
 DIRECTIONS = {'up': RED, 'down': GREEN, 'left': BLUE, 'right': YELLOW}
 KEY_MAP = {'u': RED, 'd': GREEN, 'l': BLUE, 'r': YELLOW}
 
-def flash_color(color, duration=0.5):
+# Increased flash duration for longer LED lighting
+def flash_color(color, duration=1.0):
     if USING_EMULATOR:
         print(f"[DISPLAY] FLASH -> {COLOR_NAMES.get(color, 'OFF')}")
         time.sleep(duration)
     else:
-        # Fills the 8x8 LED matrix directly with the target color
         sense.clear(color)
         time.sleep(duration)
         sense.clear(OFF)
-        time.sleep(0.2)
+        time.sleep(0.3)
 
 def get_player_input():
     if USING_EMULATOR:
@@ -58,16 +58,17 @@ def get_player_input():
                 return KEY_MAP[move]
             print("Invalid key! Use 'u' for Up, 'd' for Down, 'l' for Left, 'r' for Right.")
     else:
-        # Clear previous unprocessed joystick events to prevent key-buffering bugs
-        sense.stick.get_events()
+        # Clear residual events before checking new input
+        _ = sense.sticky_events
         while True:
-            for event in sense.stick.get_events():
-                # Detect physical Sense HAT joystick movements directly on the Pi
+            events = sense.sticky_events
+            for event in events:
                 if event.action in ['pressed', 'held'] and event.direction in DIRECTIONS:
                     user_color = DIRECTIONS[event.direction]
-                    # Flash selected color on the physical LED matrix as feedback
-                    flash_color(user_color, duration=0.3)
+                    # Show user's input choice on matrix
+                    flash_color(user_color, duration=0.5)
                     return user_color
+            time.sleep(0.05)
 
 # Game Engine
 sequence = []
@@ -75,33 +76,40 @@ print("Game Started!")
 
 try:
     while True:
-        # Add random color to pattern
+        # Add a new color step to the sequence
         sequence.append(random.choice(COLORS))
         
-        print(f"\n--- Round {len(sequence)}: Watch the pattern ---")
-        time.sleep(0.5)
-        for color in sequence:
-            flash_color(color)
+        round_passed = False
+        while not round_passed:
+            print(f"\n--- Round {len(sequence)}: Watch the pattern ---")
+            time.sleep(0.5)
+            for color in sequence:
+                flash_color(color, duration=0.8)
 
-        print("--- Your Turn: Use the Raspberry Pi Joystick ---")
-        for target_color in sequence:
-            user_choice = get_player_input()
+            print("--- Your Turn: Repeat the pattern ---")
+            failed_attempt = False
             
-            if user_choice != target_color:
-                print(f"\n❌ Wrong pattern! Game Over. Final Score: {len(sequence) - 1}")
-                if not USING_EMULATOR:
-                    # Flash RED 3 times on the LED matrix for Game Over
-                    for _ in range(3):
+            for target_color in sequence:
+                user_choice = get_player_input()
+                
+                if user_choice != target_color:
+                    print("\n❌ Wrong input! Replaying sequence, try again...")
+                    if not USING_EMULATOR:
+                        # Flash RED once to signal mistake
                         sense.clear(RED)
-                        time.sleep(0.2)
+                        time.sleep(0.5)
                         sense.clear(OFF)
-                        time.sleep(0.2)
-                sys.exit()
-            else:
-                print("Correct step!")
-        
+                        time.sleep(0.3)
+                    failed_attempt = True
+                    break  # Break input loop to replay the current round sequence
+                else:
+                    print("Correct step!")
+            
+            if not failed_attempt:
+                round_passed = True
+
         print("Round cleared!")
-        time.sleep(0.8)
+        time.sleep(1.0)
 
 except KeyboardInterrupt:
     print("\nGame exited.")
