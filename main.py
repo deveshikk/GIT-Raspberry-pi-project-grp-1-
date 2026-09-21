@@ -21,9 +21,21 @@ if USING_EMULATOR:
         def __init__(self):
             print("\n--- Running in Windows Console Simulation Mode ---")
             print("Controls: Type 'u' (Up/Red), 'd' (Down/Green), 'l' (Left/Blue), 'r' (Right/Yellow) and press Enter.\n")
+            # simple sticky events queue to mimic SenseHat API
+            self.sticky_events = []
 
         def clear(self, color=None):
             pass
+
+        # Minimal event object to mimic sense_hat event interface
+        class Event:
+            def __init__(self, action, direction):
+                self.action = action
+                self.direction = direction
+
+        # helper to push a simulated event into the sticky queue
+        def push_event(self, action, direction):
+            self.sticky_events.append(ConsoleSenseHat.Event(action, direction))
 
     sense = ConsoleSenseHat()
 
@@ -57,10 +69,32 @@ def get_player_input():
                 return KEY_MAP[move]
             print("Invalid key! Use 'u' for Up, 'd' for Down, 'l' for Left, 'r' for Right.")
     else:
+        sticky_events = getattr(sense, "sticky_events", [])
+        stick = getattr(sense, "stick", None)
+
         while True:
-            for event in sense.sticky_events:
-                if event.action in ['pressed', 'held'] and event.direction in DIRECTIONS:
-                    return DIRECTIONS[event.direction]
+            # Consume any queued sticky events first.
+            while sticky_events:
+                event = sticky_events.pop(0)
+                action = getattr(event, "action", None)
+                direction = getattr(event, "direction", None)
+                if action in ["pressed", "held"] and direction in DIRECTIONS:
+                    return DIRECTIONS[direction]
+
+            # When no queued events remain, wait for a real joystick event.
+            if stick is not None:
+                try:
+                    event = stick.wait_for_event()
+                except Exception:
+                    time.sleep(0.05)
+                    continue
+
+                action = getattr(event, "action", None)
+                direction = getattr(event, "direction", None)
+                if action in ["pressed", "held"] and direction in DIRECTIONS:
+                    return DIRECTIONS[direction]
+
+            time.sleep(0.05)
 
 # Game Engine
 sequence = []
@@ -86,7 +120,7 @@ try:
                         flash_color(RED, 0.2)
                     sense.clear()
                 sys.exit()
-            else:
+            else:   
                 print("Correct step!")
         
         print("Round cleared!")
