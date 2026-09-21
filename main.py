@@ -39,7 +39,6 @@ COLORS = [RED, GREEN, BLUE, YELLOW]
 DIRECTIONS = {'up': RED, 'down': GREEN, 'left': BLUE, 'right': YELLOW}
 KEY_MAP = {'u': RED, 'd': GREEN, 'l': BLUE, 'r': YELLOW}
 
-# Increased flash duration for longer LED lighting
 def flash_color(color, duration=1.0):
     if USING_EMULATOR:
         print(f"[DISPLAY] FLASH -> {COLOR_NAMES.get(color, 'OFF')}")
@@ -58,14 +57,13 @@ def get_player_input():
                 return KEY_MAP[move]
             print("Invalid key! Use 'u' for Up, 'd' for Down, 'l' for Left, 'r' for Right.")
     else:
-        # Clear residual events before checking new input
-        _ = sense.sticky_events
+        # Flush previous events
+        sense.stick.get_events()
         while True:
-            events = sense.sticky_events
+            events = sense.stick.get_events()
             for event in events:
                 if event.action in ['pressed', 'held'] and event.direction in DIRECTIONS:
                     user_color = DIRECTIONS[event.direction]
-                    # Show user's input choice on matrix
                     flash_color(user_color, duration=0.5)
                     return user_color
             time.sleep(0.05)
@@ -95,13 +93,12 @@ try:
                 if user_choice != target_color:
                     print("\n❌ Wrong input! Replaying sequence, try again...")
                     if not USING_EMULATOR:
-                        # Flash RED once to signal mistake
                         sense.clear(RED)
                         time.sleep(0.5)
                         sense.clear(OFF)
                         time.sleep(0.3)
                     failed_attempt = True
-                    break  # Break input loop to replay the current round sequence
+                    break  # Replay current round sequence
                 else:
                     print("Correct step!")
             
