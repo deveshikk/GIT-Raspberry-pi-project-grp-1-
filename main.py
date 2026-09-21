@@ -44,6 +44,7 @@ def flash_color(color, duration=0.5):
         print(f"[DISPLAY] FLASH -> {COLOR_NAMES.get(color, 'OFF')}")
         time.sleep(duration)
     else:
+        # Fills the 8x8 LED matrix directly with the target color
         sense.clear(color)
         time.sleep(duration)
         sense.clear(OFF)
@@ -57,10 +58,16 @@ def get_player_input():
                 return KEY_MAP[move]
             print("Invalid key! Use 'u' for Up, 'd' for Down, 'l' for Left, 'r' for Right.")
     else:
+        # Clear previous unprocessed joystick events to prevent key-buffering bugs
+        sense.stick.get_events()
         while True:
-            for event in sense.stick.get_events():              
+            for event in sense.stick.get_events():
+                # Detect physical Sense HAT joystick movements directly on the Pi
                 if event.action in ['pressed', 'held'] and event.direction in DIRECTIONS:
-                    return DIRECTIONS[event.direction]
+                    user_color = DIRECTIONS[event.direction]
+                    # Flash selected color on the physical LED matrix as feedback
+                    flash_color(user_color, duration=0.3)
+                    return user_color
 
 # Game Engine
 sequence = []
@@ -72,21 +79,25 @@ try:
         sequence.append(random.choice(COLORS))
         
         print(f"\n--- Round {len(sequence)}: Watch the pattern ---")
+        time.sleep(0.5)
         for color in sequence:
             flash_color(color)
 
-        print("--- Your Turn: Repeat the pattern ---")
+        print("--- Your Turn: Use the Raspberry Pi Joystick ---")
         for target_color in sequence:
             user_choice = get_player_input()
             
             if user_choice != target_color:
                 print(f"\n❌ Wrong pattern! Game Over. Final Score: {len(sequence) - 1}")
                 if not USING_EMULATOR:
+                    # Flash RED 3 times on the LED matrix for Game Over
                     for _ in range(3):
-                        flash_color(RED, 0.2)
-                    sense.clear()
+                        sense.clear(RED)
+                        time.sleep(0.2)
+                        sense.clear(OFF)
+                        time.sleep(0.2)
                 sys.exit()
-            else:   
+            else:
                 print("Correct step!")
         
         print("Round cleared!")
@@ -94,4 +105,5 @@ try:
 
 except KeyboardInterrupt:
     print("\nGame exited.")
-    sense.clear()
+    if not USING_EMULATOR:
+        sense.clear()
